@@ -3,7 +3,7 @@ Fetch result pages from extracted result links
 """
 
 from scraper.browser_manager import BrowserManager
-from scraper.parser import GemParser
+from scraper.parser import Parser
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
 
@@ -20,7 +20,7 @@ class ResultFetcher:
 
         self.logger = logger
 
-        parser = GemParser()
+        parser = Parser()
 
         self.records = (
             parser.parse_all_listing_pages()

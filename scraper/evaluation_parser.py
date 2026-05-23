@@ -1,12 +1,8 @@
-"""
-Parses saved evaluation pages
-"""
-
 from bs4 import BeautifulSoup
+import re
 
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
-
 from config import EVALUATIONS_DIR
 
 logger = setup_logger()
@@ -14,125 +10,211 @@ logger = setup_logger()
 
 class EvaluationParser:
 
-    def __init__(self):
+    @staticmethod
+    def parse(html):
 
-        self.logger = logger
+        soup = BeautifulSoup(
+            html,
+            "html.parser"
+        )
+
+        tables = soup.find_all(
+            "table"
+        )
+
+        if not tables:
+
+            logger.warning(
+                "No tables found"
+            )
+
+            return []
+
+        results = []
+
+        for table in tables:
+
+            header_row = table.find(
+                "tr"
+            )
+
+            if not header_row:
+                continue
+
+            headers = []
+
+            for th in header_row.find_all(
+                ["th", "td"]
+            ):
+
+                text = th.get_text(
+                    " ",
+                    strip=True
+                )
+
+                headers.append(
+                    text
+                )
+
+            headers_text = " ".join(
+                headers
+            )
+
+            headers_text = re.sub(
+                r"\s+",
+                " ",
+                headers_text
+            ).lower()
+
+            # -------------------------
+            # FINANCIAL TABLE
+            # -------------------------
+
+            if "total price" in headers_text:
+
+                logger.info(
+                    "Financial table detected"
+                )
+
+                rows = table.find_all(
+                    "tr"
+                )[1:]
+
+                for row in rows:
+
+                    cols = row.find_all(
+                        "td"
+                    )
+
+                    if len(cols) < 5:
+                        continue
+
+                    results.append({
+
+                        "evaluation_type":
+                        "financial",
+
+                        "seller_name":
+                        cols[1].get_text(
+                            " ",
+                            strip=True
+                        )
+                        .replace(
+                            "Under PMA",
+                            ""
+                        )
+                        .strip(),
+
+                        "offered_item":
+                        cols[2].get_text(
+                            " ",
+                            strip=True
+                        ),
+
+                        "total_price":
+                        cols[3].get_text(
+                            " ",
+                            strip=True
+                        ),
+
+                        "rank":
+                        cols[4].get_text(
+                            " ",
+                            strip=True
+                        )
+                    })
+
+            # -------------------------
+            # TECHNICAL TABLE
+            # -------------------------
+
+            elif (
+                "participated on"
+                in headers_text
+            ):
+
+                logger.info(
+                    "Technical table detected"
+                )
+
+                rows = table.find_all(
+                    "tr"
+                )[1:]
+
+                for row in rows:
+
+                    cols = row.find_all(
+                        "td"
+                    )
+
+                    if len(cols) < 6:
+                        continue
+
+                    results.append({
+
+                        "evaluation_type":
+                        "technical",
+
+                        "seller_name":
+                        cols[1].get_text(
+                            " ",
+                            strip=True
+                        )
+                        .replace(
+                            "Under PMA",
+                            ""
+                        )
+                        .strip(),
+
+                        "participated_on":
+                        cols[3].get_text(
+                            " ",
+                            strip=True
+                        ),
+
+                        "status":
+                        cols[-1].get_text(
+                            " ",
+                            strip=True
+                        )
+                    })
+
+        return results
 
 
-    def parse_all_evaluations(self):
+    @staticmethod
+    def parse_all():
 
-        all_records=[]
+        all_records = []
 
-        files=FileManager.list_html_files(
+        files = FileManager.list_html_files(
             EVALUATIONS_DIR
         )
 
-        self.logger.info(
+        logger.info(
             f"Found {len(files)} evaluation files"
         )
 
         for file in files:
 
-            html=FileManager.load_html(
+            html = FileManager.load_html(
                 file,
                 EVALUATIONS_DIR
             )
 
-            if html:
+            if not html:
+                continue
 
-                records=self.parse_page(
-                    html,
-                    file
-                )
+            records = EvaluationParser.parse(
+                html
+            )
 
-                all_records.extend(
-                    records
-                )
+            logger.info(
+                f"{file}: {len(records)} records"
+            )
+
+            all_records.extend(
+                records
+            )
 
         return all_records
-
-
-    def parse_page(
-        self,
-        html,
-        filename
-    ):
-
-        records=[]
-
-        soup=BeautifulSoup(
-            html,
-            "html.parser"
-        )
-
-
-        technical_section=soup.select(
-            "#collapseTwo tbody tr"
-        )
-
-
-        self.logger.info(
-            f"{filename}: "
-            f"{len(technical_section)} sellers"
-        )
-
-
-        for seller in technical_section:
-
-            try:
-
-                cols=seller.find_all(
-                    "td"
-                )
-
-                if len(cols)<5:
-                    continue
-
-
-                record={}
-
-                record["file"]=filename
-
-                seller = cols[1].select_one(".cid")
-
-                if seller:
-
-                    record["seller_name"] = (
-                        seller.text.strip()
-                    )
-
-                else:
-
-                    record["seller_name"] = (
-                        cols[1]
-                        .get_text(
-                            " ",
-                            strip=True
-                        )
-                    )
-
-                record["participated_on"]=(
-                    cols[3]
-                    .get_text(
-                        strip=True
-                    )
-                )
-
-                record["status"]=(
-                    cols[-1]
-                    .get_text(
-                        strip=True
-                    )
-                )
-
-                records.append(
-                    record
-                )
-
-            except Exception as e:
-
-                self.logger.error(
-                    f"Parse error: {e}"
-                )
-
-        return records

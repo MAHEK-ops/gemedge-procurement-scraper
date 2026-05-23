@@ -1,18 +1,27 @@
 """
 Main entry point for GemEdge scraper
-Supports two modes:
+
+Modes:
 --fetch : Fetch listing pages + result pages
---parse : Parse saved HTML
+--parse : Parse saved HTML + clean data + generate insights
 """
 
 import argparse
 import sys
+import pandas as pd
 
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
+from utils.saver import DataSaver
 
 from scraper.gem_fetcher import GemFetcher
 from scraper.result_fetcher import ResultFetcher
+from scraper.parser import Parser
+from scraper.evaluation_parser import EvaluationParser
+
+from processing.data_cleaner import DataCleaner
+from processing.insights import Insights
+
 
 logger = setup_logger()
 
@@ -55,9 +64,9 @@ python main.py --fetch --limit 50
 
     args = parser.parse_args()
 
-    # ---------------------------
+    # -------------------------------------
     # Validation
-    # ---------------------------
+    # -------------------------------------
 
     if not args.fetch and not args.parse:
 
@@ -77,15 +86,15 @@ python main.py --fetch --limit 50
 
         sys.exit(1)
 
-    # ---------------------------
+    # -------------------------------------
     # Create folders
-    # ---------------------------
+    # -------------------------------------
 
     FileManager.ensure_directories()
 
-    # ---------------------------
+    # =====================================
     # FETCH MODE
-    # ---------------------------
+    # =====================================
 
     if args.fetch:
 
@@ -98,8 +107,9 @@ python main.py --fetch --limit 50
 
         try:
 
-            # Step 1:
-            # Fetch listing pages
+            # --------------------------
+            # STEP 1
+            # --------------------------
 
             logger.info(
                 "STEP 1: Fetch listing pages"
@@ -113,8 +123,9 @@ python main.py --fetch --limit 50
                 "Listing pages fetched"
             )
 
-            # Step 2:
-            # Fetch result pages
+            # --------------------------
+            # STEP 2
+            # --------------------------
 
             logger.info(
                 "STEP 2: Fetch result pages"
@@ -142,9 +153,9 @@ python main.py --fetch --limit 50
 
             sys.exit(1)
 
-    # ---------------------------
+    # =====================================
     # PARSE MODE
-    # ---------------------------
+    # =====================================
 
     elif args.parse:
 
@@ -154,8 +165,88 @@ python main.py --fetch --limit 50
 
         try:
 
+            final_data = []
+
+            # --------------------------
+            # Parse listing pages
+            # --------------------------
+
+            listing_data = (
+                Parser.parse_all()
+            )
+
             logger.info(
-                "Parser integration pending"
+                f"Listing records: {len(listing_data)}"
+            )
+
+            final_data.extend(
+                listing_data
+            )
+
+            # --------------------------
+            # Parse evaluation pages
+            # --------------------------
+
+            evaluation_data = (
+                EvaluationParser.parse_all()
+            )
+
+            logger.info(
+                f"Evaluation records: {len(evaluation_data)}"
+            )
+
+            final_data.extend(
+                evaluation_data
+            )
+
+            # --------------------------
+            # Convert to DataFrame
+            # --------------------------
+
+            df = pd.DataFrame(
+                final_data
+            )
+
+            # --------------------------
+            # Clean data
+            # --------------------------
+
+            logger.info(
+                "Cleaning data..."
+            )
+
+            df = DataCleaner.process(
+                df
+            )
+
+            # --------------------------
+            # Save output
+            # --------------------------
+
+            logger.info(
+                "Saving output files..."
+            )
+
+            DataSaver.save(
+                df.to_dict(
+                    orient="records"
+                )
+            )
+
+            # --------------------------
+            # Generate insights
+            # --------------------------
+
+            Insights.generate(
+                df
+            )
+
+            logger.info(
+                f"Final records: {len(df)}"
+            )
+
+            logger.info(
+                "Parse completed successfully"
             )
 
         except Exception as e:
