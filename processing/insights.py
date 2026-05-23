@@ -6,28 +6,17 @@ class Insights:
     @staticmethod
     def participant_percentage(df):
 
-        if (
-            "seller_name" not in df.columns
-            or
-            "bid_id" not in df.columns
-        ):
-            return 0
-
         evaluation_df = df[
-            df["seller_name"] != "N/A"
+            df["vendor_name"] != "N/A"
         ]
 
-        evaluation_df = (
-            evaluation_df[
-                ["bid_id","seller_name"]
-            ]
-            .drop_duplicates()
-        )
-
         participant_counts = (
+
             evaluation_df
             .groupby("bid_id")
-            .size()
+            ["vendor_name"]
+            .nunique()
+
         )
 
         total = len(
@@ -35,9 +24,11 @@ class Insights:
         )
 
         above_3 = len(
+
             participant_counts[
                 participant_counts > 3
             ]
+
         )
 
         if total == 0:
@@ -52,120 +43,194 @@ class Insights:
     @staticmethod
     def repeat_winners(df):
 
-        winners = df[
-            df.get("rank")=="L1"
+        winners=df[
+            df["vendor_rank"]=="L1"
         ]
 
         return (
-            winners["seller_name"]
+
+            winners[
+                "vendor_name"
+            ]
             .value_counts()
             .head(5)
+
         )
 
 
     @staticmethod
     def duplicate_vendors(df):
 
-        duplicates = (
+        unique=(
+
             df[
-                df["seller_name"]!="N/A"
+                ["bid_id","vendor_name"]
             ]
-            ["seller_name"]
-            .value_counts()
+
+            .drop_duplicates()
+
         )
 
-        duplicates = duplicates[
-            duplicates>1
-        ]
+        duplicates=(
 
-        return duplicates.head(10)
+            unique[
+                unique[
+                    "vendor_name"
+                ]!="N/A"
+            ]
+
+            [
+                "vendor_name"
+            ]
+
+            .value_counts()
+
+        )
+
+        return duplicates[
+            duplicates>1
+        ].head(10)
 
 
     @staticmethod
     def price_gap(df):
 
-        if (
-            "rank" not in df.columns
-            or
-            "total_price" not in df.columns
-        ):
-            return []
+        financial=df[
 
-        financial = df[
-            df["evaluation_type"]=="financial"
-        ].copy()
+            df["vendor_rank"]!="N/A"
 
-        financial["total_price"] = (
-            financial["total_price"]
-            .astype(str)
-            .str.replace(
-                ",",
-                "",
-                regex=False
-            )
-        )
+        ]
 
         gaps=[]
 
-        grouped = (
-            financial.groupby(
-                "bid_id"
-            )
+        grouped=financial.groupby(
+            "bid_id"
         )
 
         for bid_id,data in grouped:
 
-            l1 = data[
-                data["rank"]=="L1"
+            l1=data[
+                data[
+                    "vendor_rank"
+                ]=="L1"
             ]
 
-            l2 = data[
-                data["rank"]=="L2"
+            l2=data[
+                data[
+                    "vendor_rank"
+                ]=="L2"
             ]
 
-            if (
-                len(l1)>0
-                and len(l2)>0
-            ):
+            if len(l1)==0 or len(l2)==0:
+                continue
+
+            try:
+
+                p1=float(
+                    str(
+                        l1.iloc[0][
+                            "vendor_price"
+                        ]
+                    ).replace(",","")
+                )
+
+                p2=float(
+                    str(
+                        l2.iloc[0][
+                            "vendor_price"
+                        ]
+                    ).replace(",","")
+                )
+
+                gap=round(
+                    ((p2-p1)/p1)*100,
+                    2
+                )
+
+                gaps.append({
+
+                    "bid_id":bid_id,
+                    "gap_percent":gap
+
+                })
+
+            except:
+                pass
+
+        return gaps
+
+
+    @staticmethod
+    def anomaly_detection(df):
+
+        anomalies=[]
+
+        grouped=df.groupby(
+            "bid_id"
+        )
+
+        for bid_id,data in grouped:
+
+            prices=[]
+
+            for price in data[
+                "vendor_price"
+            ]:
 
                 try:
 
-                    l1_price=float(
-                        l1.iloc[0][
-                            "total_price"
-                        ]
+                    prices.append(
+                        float(
+                            str(price)
+                            .replace(",","")
+                        )
                     )
-
-                    l2_price=float(
-                        l2.iloc[0][
-                            "total_price"
-                        ]
-                    )
-
-                    gap=round(
-                        (
-                            (
-                                l2_price
-                                -
-                                l1_price
-                            )
-                            /
-                            l1_price
-                        )*100,
-                        2
-                    )
-
-                    gaps.append({
-
-                        "bid_id":bid_id,
-                        "gap_percent":gap
-
-                    })
 
                 except:
                     pass
 
-        return gaps
+            if not prices:
+                continue
+
+            min_price=min(
+                prices
+            )
+
+            winner=data[
+                data[
+                    "vendor_rank"
+                ]=="L1"
+            ]
+
+            if len(winner)==0:
+                continue
+
+            try:
+
+                winner_price=float(
+
+                    str(
+                        winner.iloc[0][
+                            "vendor_price"
+                        ]
+                    ).replace(",","")
+
+                )
+
+                if winner_price>min_price:
+
+                    anomalies.append({
+
+                        "bid_id":bid_id,
+                        "winner_price":winner_price,
+                        "lowest_price":min_price
+
+                    })
+
+            except:
+                pass
+
+        return anomalies
 
 
     @staticmethod
@@ -181,28 +246,46 @@ class Insights:
             f"{Insights.participant_percentage(df)}%"
         )
 
-        print("\nTop Repeat Winners:")
+        print(
+            "\nTop Repeat Winners:"
+        )
+
         print(
             Insights.repeat_winners(df)
         )
 
-        print("\nDuplicate Vendors:")
+        print(
+            "\nDuplicate Vendors:"
+        )
+
         print(
             Insights.duplicate_vendors(df)
         )
 
-        print("\nL1-L2 Price Gaps:")
+        print(
+            "\nL1-L2 Price Gaps:"
+        )
 
-        gaps = Insights.price_gap(df)
+        for gap in Insights.price_gap(df)[:5]:
 
-        if gaps:
+            print(gap)
 
-            for gap in gaps[:5]:
+        print(
+            "\nAnomalies:"
+        )
 
-                print(gap)
+        anomalies=(
+            Insights.anomaly_detection(df)
+        )
+
+        if anomalies:
+
+            for a in anomalies[:5]:
+
+                print(a)
 
         else:
 
             print(
-                "No L1-L2 data found"
+                "No anomalies found"
             )

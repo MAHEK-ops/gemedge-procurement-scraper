@@ -1,4 +1,6 @@
 from bs4 import BeautifulSoup
+import re
+
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
 from config import LISTINGS_DIR
@@ -25,79 +27,164 @@ class Parser:
             f"Found {len(cards)} bid cards"
         )
 
-        records = []
+        records=[]
 
         for card in cards:
 
             try:
 
-                bid_id = None
-                ra_no = None
-                item = None
-                quantity = None
-                department = None
-                start_date = None
-                end_date = None
-                result_link = None
-
-                text = card.get_text(
+                text=card.get_text(
                     " ",
                     strip=True
                 )
 
+                bid_id="N/A"
+                ra_no="N/A"
+                item="N/A"
+                category="N/A"
+                quantity="N/A"
+                department="N/A"
+                buyer="N/A"
+                start_date="N/A"
+                end_date="N/A"
+                result_link="N/A"
+
+                # -------------------------
                 # Bid ID
-                if "GEM/" in text:
+                # -------------------------
 
-                    for word in text.split():
+                bid_match=re.search(
+                    r"GEM/\d+/B/\d+",
+                    text
+                )
 
-                        if "GEM/" in word:
+                if bid_match:
+                    bid_id=bid_match.group()
 
-                            if "/B/" in word:
-                                bid_id = word
+                ra_match=re.search(
+                    r"GEM/\d+/R/\d+",
+                    text
+                )
 
-                            elif "/R/" in word:
-                                ra_no = word
+                if ra_match:
+                    ra_no=ra_match.group()
 
-                # Item
-                item_tag = card.find("p")
 
-                if item_tag:
-                    item = item_tag.get_text(
+                # -------------------------
+                # Item name
+                # -------------------------
+
+                p_tags=card.find_all("p")
+
+                for p in p_tags:
+
+                    value=p.get_text(
+                        " ",
                         strip=True
                     )
 
-                # Result link
-                result_button = card.find(
-                    "a",
+                    if (
+                        "BID NO" not in value
+                        and
+                        "RA NO" not in value
+                        and
+                        len(value)>10
+                    ):
+
+                        item=value
+                        break
+
+
+                # -------------------------
+                # Category
+                # -------------------------
+
+                category_tag=card.find(
                     string=lambda x:
-                    x and "Result" in x
+                    x and
+                    "Category" in x
                 )
 
-                if result_button:
+                if category_tag:
 
-                    result_link = (
-                        result_button.get(
-                            "href"
+                    category=(
+                        category_tag
+                        .replace(
+                            "Category:",
+                            ""
                         )
+                        .strip()
                     )
+
+
+                # -------------------------
+                # Quantity
+                # -------------------------
+
+                qty_match=re.search(
+                    r"Quantity[:\s]*(\d+)",
+                    text
+                )
+
+                if qty_match:
+                    quantity=qty_match.group(1)
+
+
+                # -------------------------
+                # Department
+                # -------------------------
+
+                ministry_match=re.search(
+                    r"(Ministry.*?)(?=Start Date|End Date|Quantity|$)",
+                    text
+                )
+
+                if ministry_match:
+
+                    department=(
+                        ministry_match
+                        .group(1)
+                        .strip()
+                    )
+
+                    buyer=department
+
+
+                # -------------------------
+                # Result link
+                # -------------------------
+
+                button=card.find(
+                    "a",
+                    string=lambda x:
+                    x and
+                    "Result" in x
+                )
+
+                if button:
+
+                    result_link=button.get(
+                        "href",
+                        "N/A"
+                    )
+
 
                 records.append({
 
-                    "bid_id": bid_id,
-                    "ra_no": ra_no,
-                    "item": item,
-                    "quantity": quantity,
-                    "department": department,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "result_link": result_link
-
+                    "bid_id":bid_id,
+                    "ra_no":ra_no,
+                    "category":category,
+                    "item":item,
+                    "buyer":buyer,
+                    "department":department,
+                    "quantity":quantity,
+                    "result_link":result_link
                 })
 
             except Exception as e:
 
                 logger.warning(
-                    f"Error parsing card: {e}"
+                    f"Card error: {e}"
                 )
 
         return records
@@ -106,12 +193,10 @@ class Parser:
     @staticmethod
     def parse_all():
 
-        all_records = []
+        all_records=[]
 
-        files = (
-            FileManager.list_html_files(
-                LISTINGS_DIR
-            )
+        files=FileManager.list_html_files(
+            LISTINGS_DIR
         )
 
         logger.info(
@@ -124,16 +209,14 @@ class Parser:
                 f"Parsing {file}"
             )
 
-            html = (
-                FileManager.load_html(
-                    file,
-                    LISTINGS_DIR
-                )
+            html=FileManager.load_html(
+                file,
+                LISTINGS_DIR
             )
 
             if html:
 
-                records = (
+                records=(
                     Parser.parse_listing(
                         html
                     )
