@@ -5,89 +5,134 @@ Supports two modes: --fetch and --parse
 
 import argparse
 import sys
+
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
+from scraper.gem_fetcher import GemFetcher
 
 logger = setup_logger()
 
+
 def main():
     """
-    Parse command-line arguments and execute appropriate mode
+    Parse command-line arguments and execute mode
     """
-    # Create argument parser
+
     parser = argparse.ArgumentParser(
-        description='GemEdge Procurement Intelligence Scraper',
+        description="GemEdge Procurement Intelligence Scraper",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Fetch HTML from website (run once)
-  python main.py --fetch
-  
-  # Parse saved HTML files
-  python main.py --parse
-  
-  # Fetch with custom entry limit
-  python main.py --fetch --limit 50
+
+python main.py --fetch
+python main.py --parse
+python main.py --fetch --limit 50
         """
     )
-    
-    # Add arguments
+
+    # Fetch mode
     parser.add_argument(
-        '--fetch',
-        action='store_true',
-        help='Fetch HTML from website and save locally'
+        "--fetch",
+        action="store_true",
+        help="Fetch HTML and save locally"
     )
-    
+
+    # Parse mode
     parser.add_argument(
-        '--parse',
-        action='store_true',
-        help='Parse saved HTML files and generate output'
+        "--parse",
+        action="store_true",
+        help="Parse saved HTML files"
     )
-    
+
+    # Limit entries
     parser.add_argument(
-        '--limit',
+        "--limit",
         type=int,
         default=30,
-        help='Number of bid entries to fetch (default: 30)'
+        help="Number of entries to fetch"
     )
-    
-    # Parse arguments
+
     args = parser.parse_args()
-    
-    # Validate: must specify either --fetch or --parse
+
+    # Validation
+
     if not args.fetch and not args.parse:
-        logger.error("Must specify either --fetch or --parse")
+
+        logger.error(
+            "Please specify either --fetch or --parse"
+        )
+
         parser.print_help()
+
         sys.exit(1)
-    
+
     if args.fetch and args.parse:
-        logger.error("Cannot use --fetch and --parse together")
+
+        logger.error(
+            "Cannot use --fetch and --parse together"
+        )
+
         sys.exit(1)
-    
-    # Ensure directories exist
+
+    # Create directories if missing
+
     FileManager.ensure_directories()
-    
-    # Execute appropriate mode
+
+    # FETCH MODE
+
     if args.fetch:
+
         logger.info("=" * 60)
         logger.info("MODE: FETCH")
-        logger.info(f"Target: {args.limit} entries")
+        logger.info(
+            f"Target entries: {args.limit}"
+        )
         logger.info("=" * 60)
-        
-        # TODO: Import and run fetcher
-        logger.info("Fetcher not implemented yet")
-        # from scraper.fetcher import run_fetch
-        # run_fetch(limit=args.limit)
-    
+
+        try:
+
+            fetcher = GemFetcher()
+
+            fetcher.fetch()
+
+            logger.info(
+                "Fetch completed successfully"
+            )
+
+        except Exception as e:
+
+            logger.error(
+                f"Fetch failed: {e}"
+            )
+
+            sys.exit(1)
+
+    # PARSE MODE
+
     elif args.parse:
+
         logger.info("=" * 60)
         logger.info("MODE: PARSE")
         logger.info("=" * 60)
-        
-        # TODO: Import and run parser
-        logger.info("Parser not implemented yet")
-        # from scraper.parser import run_parse
-        # run_parse()
+
+        try:
+
+            logger.info(
+                "Parser not implemented yet"
+            )
+
+            # future:
+            # parser = GemParser()
+            # parser.parse()
+
+        except Exception as e:
+
+            logger.error(
+                f"Parse failed: {e}"
+            )
+
+            sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
