@@ -1,19 +1,11 @@
-from scraper.parser import GemParser
-from parser.evaluation_parser import EvaluationParser
-
+from scraper.parser import Parser
+from scraper.evaluation_parser import EvaluationParser
 from utils.file_manager import FileManager
-from utils.saver import DataSaver
-
 from config import EVALUATIONS_DIR
 
+listing_records = Parser.parse_all()
 
-listing_parser = GemParser()
-
-listing_records = (
-    listing_parser.parse_all_listing_pages()
-)
-
-evaluation_records=[]
+evaluation_records = []
 
 files = FileManager.list_html_files(
     EVALUATIONS_DIR
@@ -26,14 +18,24 @@ for file in files:
         EVALUATIONS_DIR
     )
 
-    if html:
+    data = EvaluationParser.parse(
+        html
+    )
 
-        records = EvaluationParser.parse(
-            html
-        )
+    # extract bid_id from filename
+    # GEM_2026_B_7527569.html
+    bid_id = (
+        file
+        .replace(".html","")
+        .replace("_","/")
+    )
 
-        evaluation_records.extend(
-            records
+    for row in data:
+
+        row["bid_id"] = bid_id
+
+        evaluation_records.append(
+            row
         )
 
 print(
@@ -44,25 +46,4 @@ print(
 print(
     "Evaluation records:",
     len(evaluation_records)
-)
-
-final_data=[]
-
-final_data.extend(
-    listing_records
-)
-
-final_data.extend(
-    evaluation_records
-)
-
-DataSaver.save(
-    final_data
-)
-
-print()
-
-print(
-    "Final records:",
-    len(final_data)
 )

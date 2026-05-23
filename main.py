@@ -22,6 +22,8 @@ from scraper.evaluation_parser import EvaluationParser
 from processing.data_cleaner import DataCleaner
 from processing.insights import Insights
 
+from config import EVALUATIONS_DIR
+
 
 logger = setup_logger()
 
@@ -29,87 +31,60 @@ logger = setup_logger()
 def main():
 
     parser = argparse.ArgumentParser(
-        description="GemEdge Procurement Intelligence Scraper",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-
-python main.py --fetch
-python main.py --parse
-python main.py --fetch --limit 50
-"""
+        description="GemEdge Procurement Intelligence Scraper"
     )
 
-    # Fetch mode
     parser.add_argument(
         "--fetch",
-        action="store_true",
-        help="Fetch HTML and save locally"
+        action="store_true"
     )
 
-    # Parse mode
     parser.add_argument(
         "--parse",
-        action="store_true",
-        help="Parse saved HTML"
+        action="store_true"
     )
 
-    # Optional limit
     parser.add_argument(
         "--limit",
         type=int,
-        default=30,
-        help="Number of entries"
+        default=30
     )
 
     args = parser.parse_args()
 
-    # -------------------------------------
-    # Validation
-    # -------------------------------------
+    # -------------------------
+    # validation
+    # -------------------------
 
     if not args.fetch and not args.parse:
 
         logger.error(
-            "Specify either --fetch or --parse"
+            "Specify --fetch or --parse"
         )
-
-        parser.print_help()
 
         sys.exit(1)
 
     if args.fetch and args.parse:
 
         logger.error(
-            "Cannot use both --fetch and --parse"
+            "Cannot use both modes"
         )
 
         sys.exit(1)
 
-    # -------------------------------------
-    # Create folders
-    # -------------------------------------
-
     FileManager.ensure_directories()
 
-    # =====================================
-    # FETCH MODE
-    # =====================================
+    # ==================================================
+    # FETCH
+    # ==================================================
 
     if args.fetch:
 
-        logger.info("=" * 60)
+        logger.info("="*60)
         logger.info("MODE: FETCH")
-        logger.info(
-            f"Target entries: {args.limit}"
-        )
-        logger.info("=" * 60)
+        logger.info("="*60)
 
         try:
-
-            # --------------------------
-            # STEP 1
-            # --------------------------
 
             logger.info(
                 "STEP 1: Fetch listing pages"
@@ -118,14 +93,6 @@ python main.py --fetch --limit 50
             fetcher = GemFetcher()
 
             fetcher.fetch()
-
-            logger.info(
-                "Listing pages fetched"
-            )
-
-            # --------------------------
-            # STEP 2
-            # --------------------------
 
             logger.info(
                 "STEP 2: Fetch result pages"
@@ -138,11 +105,7 @@ python main.py --fetch --limit 50
             result_fetcher.fetch_results()
 
             logger.info(
-                "Result pages fetched"
-            )
-
-            logger.info(
-                "Fetch completed successfully"
+                "Fetch completed"
             )
 
         except Exception as e:
@@ -153,75 +116,112 @@ python main.py --fetch --limit 50
 
             sys.exit(1)
 
-    # =====================================
-    # PARSE MODE
-    # =====================================
+    # ==================================================
+    # PARSE
+    # ==================================================
 
     elif args.parse:
 
-        logger.info("=" * 60)
+        logger.info("="*60)
         logger.info("MODE: PARSE")
-        logger.info("=" * 60)
+        logger.info("="*60)
 
         try:
 
-            final_data = []
+            all_records=[]
 
-            # --------------------------
-            # Parse listing pages
-            # --------------------------
+            # -------------------------
+            # Listing pages
+            # -------------------------
 
-            listing_data = (
+            listing_records=(
                 Parser.parse_all()
             )
 
             logger.info(
-                f"Listing records: {len(listing_data)}"
+                f"Listing records: {len(listing_records)}"
             )
 
-            final_data.extend(
-                listing_data
+            all_records.extend(
+                listing_records
             )
 
-            # --------------------------
-            # Parse evaluation pages
-            # --------------------------
+            # -------------------------
+            # Evaluation pages
+            # -------------------------
 
-            evaluation_data = (
-                EvaluationParser.parse_all()
+            files=(
+                FileManager.list_html_files(
+                    EVALUATIONS_DIR
+                )
             )
+
+            evaluation_records=[]
 
             logger.info(
-                f"Evaluation records: {len(evaluation_data)}"
+                f"Found {len(files)} evaluation files"
             )
 
-            final_data.extend(
-                evaluation_data
+            for file in files:
+
+                html=(
+                    FileManager.load_html(
+                        file,
+                        EVALUATIONS_DIR
+                    )
+                )
+
+                if not html:
+                    continue
+
+                records=(
+                    EvaluationParser.parse(
+                        html
+                    )
+                )
+
+                # attach bid_id
+                bid_id=(
+                    file
+                    .replace(".html","")
+                    .replace("_","/")
+                )
+
+                for row in records:
+
+                    row["bid_id"]=bid_id
+
+                    evaluation_records.append(
+                        row
+                    )
+
+                logger.info(
+                    f"{file}: {len(records)} records"
+                )
+
+            logger.info(
+                f"Evaluation records: {len(evaluation_records)}"
             )
 
-            # --------------------------
-            # Convert to DataFrame
-            # --------------------------
-
-            df = pd.DataFrame(
-                final_data
+            all_records.extend(
+                evaluation_records
             )
 
-            # --------------------------
-            # Clean data
-            # --------------------------
+            # -------------------------
+            # Dataframe
+            # -------------------------
+
+            df=pd.DataFrame(
+                all_records
+            )
 
             logger.info(
                 "Cleaning data..."
             )
 
-            df = DataCleaner.process(
+            df=DataCleaner.process(
                 df
             )
-
-            # --------------------------
-            # Save output
-            # --------------------------
 
             logger.info(
                 "Saving output files..."
@@ -233,9 +233,9 @@ python main.py --fetch --limit 50
                 )
             )
 
-            # --------------------------
-            # Generate insights
-            # --------------------------
+            # -------------------------
+            # Insights
+            # -------------------------
 
             Insights.generate(
                 df
@@ -258,5 +258,5 @@ python main.py --fetch --limit 50
             sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()

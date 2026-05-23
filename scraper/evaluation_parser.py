@@ -30,7 +30,7 @@ class EvaluationParser:
 
             return []
 
-        results = []
+        results=[]
 
         for table in tables:
 
@@ -41,10 +41,10 @@ class EvaluationParser:
             if not header_row:
                 continue
 
-            headers = []
+            headers=[]
 
             for th in header_row.find_all(
-                ["th", "td"]
+                ["th","td"]
             ):
 
                 text = th.get_text(
@@ -66,9 +66,9 @@ class EvaluationParser:
                 headers_text
             ).lower()
 
-            # -------------------------
+            # =====================================
             # FINANCIAL TABLE
-            # -------------------------
+            # =====================================
 
             if "total price" in headers_text:
 
@@ -76,18 +76,81 @@ class EvaluationParser:
                     "Financial table detected"
                 )
 
-                rows = table.find_all(
+                rows=table.find_all(
                     "tr"
                 )[1:]
 
                 for row in rows:
 
-                    cols = row.find_all(
+                    cols=row.find_all(
                         "td"
                     )
 
-                    if len(cols) < 5:
+                    if len(cols)<2:
                         continue
+
+                    row_text=row.get_text(
+                        " ",
+                        strip=True
+                    )
+
+                    # Extract rank
+                    rank_match = re.search(
+                        r"\bL\d+\b",
+                        row_text
+                    )
+
+                    rank = (
+                        rank_match.group()
+                        if rank_match
+                        else "N/A"
+                    )
+
+                    # -------------------
+                    # Better price extraction
+                    # -------------------
+
+                    numbers = re.findall(
+                        r"\d[\d,]*\.?\d*",
+                        row_text
+                    )
+
+                    valid_prices=[]
+
+                    for num in numbers:
+
+                        clean_num = (
+                            num.replace(
+                                ",",
+                                ""
+                            )
+                        )
+
+                        try:
+
+                            value=float(
+                                clean_num
+                            )
+
+                            # ignore small values
+                            if value>1000:
+
+                                valid_prices.append(
+                                    value
+                                )
+
+                        except:
+                            continue
+
+                    if valid_prices:
+
+                        total_price=str(
+                            valid_prices[-1]
+                        )
+
+                    else:
+
+                        total_price="N/A"
 
                     results.append({
 
@@ -95,7 +158,8 @@ class EvaluationParser:
                         "financial",
 
                         "seller_name":
-                        cols[1].get_text(
+                        cols[1]
+                        .get_text(
                             " ",
                             strip=True
                         )
@@ -105,28 +169,17 @@ class EvaluationParser:
                         )
                         .strip(),
 
-                        "offered_item":
-                        cols[2].get_text(
-                            " ",
-                            strip=True
-                        ),
-
                         "total_price":
-                        cols[3].get_text(
-                            " ",
-                            strip=True
-                        ),
+                        total_price,
 
                         "rank":
-                        cols[4].get_text(
-                            " ",
-                            strip=True
-                        )
+                        rank
                     })
 
-            # -------------------------
+
+            # =====================================
             # TECHNICAL TABLE
-            # -------------------------
+            # =====================================
 
             elif (
                 "participated on"
@@ -137,17 +190,17 @@ class EvaluationParser:
                     "Technical table detected"
                 )
 
-                rows = table.find_all(
+                rows=table.find_all(
                     "tr"
                 )[1:]
 
                 for row in rows:
 
-                    cols = row.find_all(
+                    cols=row.find_all(
                         "td"
                     )
 
-                    if len(cols) < 6:
+                    if len(cols)<6:
                         continue
 
                     results.append({
@@ -156,7 +209,8 @@ class EvaluationParser:
                         "technical",
 
                         "seller_name":
-                        cols[1].get_text(
+                        cols[1]
+                        .get_text(
                             " ",
                             strip=True
                         )
@@ -167,16 +221,19 @@ class EvaluationParser:
                         .strip(),
 
                         "participated_on":
-                        cols[3].get_text(
+                        cols[3]
+                        .get_text(
                             " ",
                             strip=True
                         ),
 
                         "status":
-                        cols[-1].get_text(
+                        cols[-1]
+                        .get_text(
                             " ",
                             strip=True
                         )
+
                     })
 
         return results
@@ -185,9 +242,9 @@ class EvaluationParser:
     @staticmethod
     def parse_all():
 
-        all_records = []
+        all_records=[]
 
-        files = FileManager.list_html_files(
+        files=FileManager.list_html_files(
             EVALUATIONS_DIR
         )
 
@@ -197,7 +254,7 @@ class EvaluationParser:
 
         for file in files:
 
-            html = FileManager.load_html(
+            html=FileManager.load_html(
                 file,
                 EVALUATIONS_DIR
             )
@@ -205,7 +262,7 @@ class EvaluationParser:
             if not html:
                 continue
 
-            records = EvaluationParser.parse(
+            records=EvaluationParser.parse(
                 html
             )
 
