@@ -1,0 +1,17 @@
+# Virtual environment
+venv/
+env/
+*.pyc
+__pycache__/
+
+# Raw HTML files (fetch locally)
+raw_html/
+
+# Output files
+output/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
