@@ -1,6 +1,8 @@
 """
 Main entry point for GemEdge scraper
-Supports two modes: --fetch and --parse
+Supports two modes:
+--fetch : Fetch listing pages + result pages
+--parse : Parse saved HTML
 """
 
 import argparse
@@ -8,15 +10,14 @@ import sys
 
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
+
 from scraper.gem_fetcher import GemFetcher
+from scraper.result_fetcher import ResultFetcher
 
 logger = setup_logger()
 
 
 def main():
-    """
-    Parse command-line arguments and execute mode
-    """
 
     parser = argparse.ArgumentParser(
         description="GemEdge Procurement Intelligence Scraper",
@@ -27,7 +28,7 @@ Examples:
 python main.py --fetch
 python main.py --parse
 python main.py --fetch --limit 50
-        """
+"""
     )
 
     # Fetch mode
@@ -41,25 +42,27 @@ python main.py --fetch --limit 50
     parser.add_argument(
         "--parse",
         action="store_true",
-        help="Parse saved HTML files"
+        help="Parse saved HTML"
     )
 
-    # Limit entries
+    # Optional limit
     parser.add_argument(
         "--limit",
         type=int,
         default=30,
-        help="Number of entries to fetch"
+        help="Number of entries"
     )
 
     args = parser.parse_args()
 
+    # ---------------------------
     # Validation
+    # ---------------------------
 
     if not args.fetch and not args.parse:
 
         logger.error(
-            "Please specify either --fetch or --parse"
+            "Specify either --fetch or --parse"
         )
 
         parser.print_help()
@@ -69,16 +72,20 @@ python main.py --fetch --limit 50
     if args.fetch and args.parse:
 
         logger.error(
-            "Cannot use --fetch and --parse together"
+            "Cannot use both --fetch and --parse"
         )
 
         sys.exit(1)
 
-    # Create directories if missing
+    # ---------------------------
+    # Create folders
+    # ---------------------------
 
     FileManager.ensure_directories()
 
+    # ---------------------------
     # FETCH MODE
+    # ---------------------------
 
     if args.fetch:
 
@@ -91,9 +98,37 @@ python main.py --fetch --limit 50
 
         try:
 
+            # Step 1:
+            # Fetch listing pages
+
+            logger.info(
+                "STEP 1: Fetch listing pages"
+            )
+
             fetcher = GemFetcher()
 
             fetcher.fetch()
+
+            logger.info(
+                "Listing pages fetched"
+            )
+
+            # Step 2:
+            # Fetch result pages
+
+            logger.info(
+                "STEP 2: Fetch result pages"
+            )
+
+            result_fetcher = (
+                ResultFetcher()
+            )
+
+            result_fetcher.fetch_results()
+
+            logger.info(
+                "Result pages fetched"
+            )
 
             logger.info(
                 "Fetch completed successfully"
@@ -107,7 +142,9 @@ python main.py --fetch --limit 50
 
             sys.exit(1)
 
+    # ---------------------------
     # PARSE MODE
+    # ---------------------------
 
     elif args.parse:
 
@@ -118,12 +155,8 @@ python main.py --fetch --limit 50
         try:
 
             logger.info(
-                "Parser not implemented yet"
+                "Parser integration pending"
             )
-
-            # future:
-            # parser = GemParser()
-            # parser.parse()
 
         except Exception as e:
 
